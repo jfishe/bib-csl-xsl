@@ -1,0 +1,59 @@
+((=- Keep default notebook styling with code cells, etc. -=))
+((*- if not cell_style is defined -*))
+  ((*  set cell_style = 'style_jupyter.tex.j2'  *))
+((*- endif -*))
+((*- set latex_export = nb.metadata.get('latex_export', {}) -*))
+((*- set document_id = latex_export.get('document_id', '') -*))
+((*- set revision = latex_export.get('revision', '') -*))
+((*- set page_prefix = latex_export.get('page_prefix', '') -*))
+((*- set has_document_header = document_id -*))
+((*- set has_page_prefix = page_prefix -*))
+
+((* extends cell_style *))
+
+((*- block packages -*))
+  ((( super() )))
+  % Load caption after base.tex.j2 so we can override its nocaption defaults.
+  \usepackage[font=small,labelfont=bf,labelsep=colon]{caption}
+  ((*- if has_document_header -*))
+  \usepackage{fancyhdr}
+  \setlength{\headheight}{15pt}
+  ((*- endif -*))
+((*- endblock packages -*))
+
+((*- block definitions -*))
+  ((( super() )))
+
+  % Restore captions hidden by nbconvert's base.tex.j2 for notebook tables.
+  \captionsetup[table]{format=plain, font=small, labelfont=bf, labelsep=colon}
+  \captionsetup[longtable]{format=plain, font=small, labelfont=bf, labelsep=colon}
+
+  ((*- if has_page_prefix -*))
+  \renewcommand{\thepage}{((( page_prefix | escape_latex )))\arabic{page}}
+  ((*- endif -*))
+
+  ((*- if has_document_header -*))
+  \newcommand{\notebookheadertext}{
+    ((( document_id | escape_latex )))
+    ((*- if revision -*))\ Revision\ ((( revision | escape_latex )))((*- endif -*))
+    \ page\ \thepage%
+  }
+
+  \fancypagestyle{plain}{
+    \fancyhf{}%
+    \fancyhead[R]{\notebookheadertext}%
+    \fancyfoot[LE,LO,CE,CO,RE,RO]{}%
+  }
+
+  \makeatletter
+  \AtBeginDocument{
+    \fancyhf{}%
+    \fancyhead[R]{\notebookheadertext}%
+    \fancyfoot[LE,LO,CE,CO,RE,RO]{}%
+    \pagestyle{fancy}%
+    \thispagestyle{fancy}%
+    \let\ps@plain\ps@fancy%
+  }
+  \makeatother
+  ((*- endif -*))
+((*- endblock definitions -*))
