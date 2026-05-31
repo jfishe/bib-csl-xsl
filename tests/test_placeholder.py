@@ -13,7 +13,7 @@ def test_version_is_string() -> None:
 
 def test_importable() -> None:
     """Verify the package can be imported without errors."""
-    import bib_csl_xsl  # noqa: F401
-    import bib_csl_xsl.dataset  # noqa: F401
-    import bib_csl_xsl.features  # noqa: F401
+    import bib_csl_xsl
+    import bib_csl_xsl.dataset
+    import bib_csl_xsl.features
     import bib_csl_xsl.modeling  # noqa: F401

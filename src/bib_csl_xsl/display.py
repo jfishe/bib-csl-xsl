@@ -39,7 +39,7 @@ def display_dataframe(
     precision: int = 3,
     max_rows: int | None = 20,
     na_rep: str = "—",
-) -> "DataFrameDisplay":
+) -> DataFrameDisplay:
     """Return a rich display wrapper for notebook and nbconvert output.
 
     Parameters
@@ -85,7 +85,7 @@ def _preview_dataframe(df: pd.DataFrame, *, max_rows: int | None) -> pd.DataFram
 
 def _require_styler_dependencies() -> None:
     try:
-        import jinja2  # noqa: F401
+        import jinja2  # type: ignore[import-not-found]  # noqa: F401
     except ImportError as exc:
         msg = "display_dataframe() requires jinja2; install the notebooks group."
         raise RuntimeError(msg) from exc
@@ -103,6 +103,7 @@ class DataFrameDisplay:
     na_rep: str
 
     def __repr__(self) -> str:
+        """Plain-text representation for interactive and nbconvert use."""
         return self._plain_text()
 
     def _repr_mimebundle_(
@@ -124,10 +125,7 @@ class DataFrameDisplay:
         body = self.preview.to_string()
         if len(self.preview) == self.total_rows:
             return body
-        return (
-            f"Showing first {len(self.preview)} of {self.total_rows} rows.\n\n"
-            f"{body}"
-        )
+        return f"Showing first {len(self.preview)} of {self.total_rows} rows.\n\n{body}"
 
     def _styler(self) -> pd.io.formats.style.Styler:
         _require_styler_dependencies()

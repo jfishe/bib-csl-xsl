@@ -72,6 +72,6 @@ repos:
     rev: v1.10.0
     hooks:
       - id: mypy
-        additional_dependencies: [pandas-stubs]
-        args: ["--config-file=pyproject.toml"]
+        additional_dependencies: [defusedxml, types-defusedxml, joblib, joblib-stubs, pandas-stubs]
+        args: ["--config-file=pyproject.toml", "src"]
         pass_filenames: false

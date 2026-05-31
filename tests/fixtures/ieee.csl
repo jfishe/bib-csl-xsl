@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0">
+  <info>
+    <title>IEEE</title>
+    <id>http://www.zotero.org/styles/ieee</id>
+    <updated>2024-05-01T00:00:00+00:00</updated>
+  </info>
+  <citation citation-format="numeric">
+    <layout prefix="[" suffix="]">
+      <text value="1"/>
+    </layout>
+  </citation>
+  <macro name="author">
+    <names variable="author">
+      <name initialize-with=". " delimiter=", " and="text" et-al-min="7" et-al-use-first="1"/>
+      <label form="short" prefix=", "/>
+      <substitute>
+        <names variable="editor">
+          <name initialize-with=". " delimiter=", " and="text"/>
+          <label form="short" prefix=", "/>
+        </names>
+        <names variable="translator">
+          <name initialize-with=". " delimiter=", " and="text"/>
+          <label form="short" prefix=", "/>
+        </names>
+      </substitute>
+    </names>
+  </macro>
+  <macro name="title">
+    <choose>
+      <if type="article-journal article-magazine article-newspaper webpage paper-conference">
+        <text variable="title" quotes="true"/>
+      </if>
+      <else>
+        <text variable="title"/>
+      </else>
+    </choose>
+  </macro>
+  <macro name="edition">
+    <choose>
+      <if is-numeric="edition">
+        <group delimiter=" ">
+          <number variable="edition" form="ordinal"/>
+          <label variable="edition" form="short"/>
+        </group>
+      </if>
+      <else>
+        <text variable="edition"/>
+      </else>
+    </choose>
+  </macro>
+  <macro name="issued">
+    <date variable="issued">
+      <date-part name="year"/>
+    </date>
+  </macro>
+  <macro name="access">
+    <group delimiter=" ">
+      <text term="available at"/>
+      <text variable="URL"/>
+    </group>
+  </macro>
+  <bibliography entry-spacing="0" second-field-align="flush">
+    <layout suffix=".">
+      <choose>
+        <if type="article-journal">
+          <group delimiter=", ">
+            <text macro="author"/>
+            <text macro="title"/>
+            <group delimiter=" ">
+              <text variable="container-title"/>
+              <group delimiter=", ">
+                <text variable="volume" prefix="vol. "/>
+                <text variable="issue" prefix="no. "/>
+              </group>
+              <text macro="issued"/>
+              <text variable="page" prefix="pp. "/>
+            </group>
+          </group>
+        </if>
+        <else-if type="book">
+          <group delimiter=", ">
+            <text macro="author"/>
+            <text macro="title"/>
+            <text macro="edition"/>
+            <group delimiter=": ">
+              <text variable="publisher-place"/>
+              <text variable="publisher"/>
+            </group>
+            <text macro="issued"/>
+          </group>
+        </else-if>
+        <else-if type="paper-conference">
+          <group delimiter=", ">
+            <text macro="author"/>
+            <text macro="title"/>
+            <group delimiter=" ">
+              <text value="in"/>
+              <text variable="container-title"/>
+            </group>
+            <text variable="event-place"/>
+            <text macro="issued"/>
+            <text variable="page" prefix="pp. "/>
+          </group>
+        </else-if>
+        <else-if type="webpage">
+          <group delimiter=", ">
+            <text macro="author"/>
+            <text macro="title"/>
+            <text variable="container-title"/>
+            <group delimiter=" ">
+              <text term="accessed"/>
+              <date variable="accessed">
+                <date-part name="month" form="short"/>
+                <date-part name="day"/>
+                <date-part name="year"/>
+              </date>
+            </group>
+            <text macro="access"/>
+          </group>
+        </else-if>
+        <else>
+          <group delimiter=", ">
+            <text macro="author"/>
+            <text macro="title"/>
+            <text macro="issued"/>
+          </group>
+        </else>
+      </choose>
+    </layout>
+  </bibliography>
+</style>
