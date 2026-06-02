@@ -13,8 +13,8 @@ FIXTURE = Path(__file__).parent / "fixtures" / "ieee.csl"
 def test_parse_csl_style_reads_metadata() -> None:
     style = parse_csl_style(FIXTURE)
 
-    assert style.title == "IEEE"
-    assert style.updated == "2024-05-01T00:00:00+00:00"
+    assert style.title == "IEEE Reference Guide version 11.29.2023"
+    assert style.updated == "2026-01-07T15:36:59+00:00"
     assert style.csl_version == "1.0"
     assert style.citation_format == "numeric"
     assert "author" in style.macros
@@ -30,8 +30,8 @@ def test_convert_csl_file_generates_standalone_word_style(tmp_path: Path) -> Non
 
     assert root.tag.endswith("stylesheet")
     assert 'match="b:StyleName"' in xml_text
-    assert "IEEE" in xml_text
-    assert "2024-05-01T00:00:00+00:00" in xml_text
+    assert "IEEE Reference Guide version 11.29.2023" in xml_text
+    assert "2026-01-07T15:36:59+00:00" in xml_text
     assert 'match="b:GetImportantFields"' in xml_text
     assert "IEEE2006OfficeOnline" not in xml_text
 
@@ -45,13 +45,14 @@ def test_generated_xsl_uses_csl_metadata_fields(tmp_path: Path) -> None:
 
     assert (
         '<xsl:template match="b:Version"><xsl:text>'
-        "2024-05-01T00:00:00+00:00"
+        "2026-01-07T15:36:59+00:00"
         "</xsl:text></xsl:template>" in xml_text
     )
     assert '<xsl:template match="b:XslVersion"><xsl:text>1.0</xsl:text></xsl:template>' in xml_text
     assert (
-        '<xsl:template match="b:StyleNameLocalized"><xsl:text>IEEE</xsl:text></xsl:template>'
-        in xml_text
+        '<xsl:template match="b:StyleNameLocalized"><xsl:text>'
+        "IEEE Reference Guide version 11.29.2023"
+        "</xsl:text></xsl:template>" in xml_text
     )
 
 

@@ -42,10 +42,16 @@ TEXT_VARIABLE_PATHS = {
     "genre": ("b:Type",),
     "medium": ("b:Medium",),
     "collection-title": ("b:SeriesTitle",),
+    "collection-number": ("b:SeriesNumber",),
+    "chapter-number": ("b:ChapterNumber",),
+    "citation-number": ("b:Tag",),
     "event": ("b:ConferenceName",),
     "archive": ("b:Archive",),
     "archive_location": ("b:ArchiveLocation",),
+    "locator": ("b:Pages", "b:PageRange"),
     "note": ("b:Comments",),
+    "number-of-volumes": ("b:NumberOfVolumes",),
+    "status": ("b:Comments",),
     "standard-number": ("b:StandardNumber", "b:ISBN", "b:ISSN"),
     "version": ("b:Version",),
 }
@@ -108,16 +114,29 @@ SUPPORTED_TAGS = {
     "info",
     "label",
     "layout",
+    "link",
+    "locale",
     "macro",
     "name",
     "names",
     "number",
+    "author",
+    "category",
+    "contributor",
+    "email",
+    "key",
     "sort",
+    "rights",
     "substitute",
+    "summary",
     "style",
+    "term",
+    "terms",
     "text",
     "title",
+    "title-short",
     "updated",
+    "uri",
 }
 
 
@@ -177,6 +196,14 @@ def parse_csl_style(path: str | Path) -> CslStyle:
     if citation is None or bibliography is None:
         raise ConversionError("Style must define both <citation> and <bibliography>.")
 
+    citation_format = citation.attrib.get(
+        "citation-format", root.attrib.get("citation-format", "")
+    )
+    if not citation_format:
+        category = info.find("csl:category[@citation-format]", NS)
+        if category is not None:
+            citation_format = category.attrib.get("citation-format", "")
+
     citation_layout = citation.find("csl:layout", NS)
     bibliography_layout = bibliography.find("csl:layout", NS)
     if citation_layout is None or bibliography_layout is None:
@@ -191,9 +218,7 @@ def parse_csl_style(path: str | Path) -> CslStyle:
         title=title,
         updated=updated,
         csl_version=root.attrib.get("version", "1.0"),
-        citation_format=citation.attrib.get(
-            "citation-format", root.attrib.get("citation-format", "")
-        ),
+        citation_format=citation_format,
         citation_layout=citation_layout,
         bibliography_layout=bibliography_layout,
         macros=macros,
@@ -635,6 +660,10 @@ class _Compiler:
             return ""
         if variable in {"editor", "translator", "director", "composer"}:
             return TERMS.get((variable, form), variable)
+        if variable == "locator":
+            return TERMS.get(("page", form), "p." if form == "short" else "page")
+        if variable == "chapter-number":
+            return TERMS.get(("chapter", form), "ch." if form == "short" else "chapter")
         return TERMS.get((variable, form), variable)
 
     def _apply_text_decorations(
@@ -704,6 +733,12 @@ class _Compiler:
                 for variable in node.attrib["is-numeric"].split()
             ]
             clauses.append(self._wrap_match(checks, match))
+        if "locator" in node.attrib:
+            locator_checks = [
+                f"normalize-space(@locator)='{escape(locator)}' or normalize-space(b:LocatorType)='{escape(locator)}'"
+                for locator in node.attrib["locator"].split()
+            ]
+            clauses.append(self._wrap_match(locator_checks, match))
         if not clauses:
             return "true()"
         return " and ".join(f"({clause})" for clause in clauses)
