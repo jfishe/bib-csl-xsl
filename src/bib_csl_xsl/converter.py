@@ -261,7 +261,7 @@ class _Compiler:
         macros = "\n".join(
             self._render_macro_template(name, macro) for name, macro in self.style.macros.items()
         )
-        bibliography_fragment = self._compile_node(self.style.bibliography_layout)
+        bibliography_fragment = self._compile_bibliography_layout()
         lines = [
             '<?xml version="1.0" encoding="utf-8"?>',
             '<xsl:stylesheet version="1.0"',
@@ -293,10 +293,15 @@ class _Compiler:
             "",
             '  <xsl:template match="b:GetImportantFields">',
             "    <b:ImportantFields>",
+            "      <xsl:choose>",
+            *self._important_fields_templates(),
+            "        <xsl:otherwise>",
             *[
-                f"      <b:ImportantField>{escape(field)}</b:ImportantField>"
-                for field in self._important_fields()
+                f"          <b:ImportantField>{escape(field)}</b:ImportantField>"
+                for field in self._important_fields_default()
             ],
+            "        </xsl:otherwise>",
+            "      </xsl:choose>",
             "    </b:ImportantFields>",
             "  </xsl:template>",
             "",
@@ -325,26 +330,55 @@ class _Compiler:
             "",
             '  <xsl:template match="b:Bibliography">',
             '    <html xmlns="http://www.w3.org/TR/REC-html40">',
+            "      <head>",
+            "        <style>",
+            "          p.MsoBibliography, li.MsoBibliography, div.MsoBibliography",
+            "        </style>",
+            "      </head>",
             "      <body>",
-            '        <xsl:apply-templates select="b:Source">',
-            '          <xsl:sort select="b:RefOrder" order="ascending" data-type="number"/>',
-            "        </xsl:apply-templates>",
+            '        <table class="MsoBibliography" width="100%">',
+            '          <xsl:apply-templates select="b:Source">',
+            '            <xsl:sort select="b:RefOrder" order="ascending" data-type="number"/>',
+            "          </xsl:apply-templates>",
+            "        </table>",
             "      </body>",
             "    </html>",
             "  </xsl:template>",
             "",
             '  <xsl:template match="b:Source">',
-            '    <p class="MsoBibliography">',
-            *self._indent(bibliography_fragment.setup_lines, 2),
-            '    <xsl:value-of select="normalize-space(string($'
+            "    <tr>",
+            '      <td style="text-align:right" valign="top">',
+            '        <p class="MsoBibliography">',
+            '          <xsl:call-template name="bib-ref-order"/>',
+            "        </p>",
+            "      </td>",
+            '      <td style="text-align:left" valign="top">',
+            '        <p class="MsoBibliography">',
+            *self._indent(bibliography_fragment.setup_lines, 4),
+            '          <xsl:value-of select="normalize-space(string($'
             + bibliography_fragment.variable_name
             + '))"/>',
-            "    </p>",
+            "        </p>",
+            "      </td>",
+            "    </tr>",
             "  </xsl:template>",
             "</xsl:stylesheet>",
             "",
         ]
         return "\n".join(line for line in lines if line is not None)
+
+    def _compile_bibliography_layout(self) -> Fragment:
+        layout = self.style.bibliography_layout
+        children = list(layout)
+        if children:
+            first = children[0]
+            if (
+                _local_name(first.tag) == "text"
+                and first.attrib.get("variable") == "citation-number"
+            ):
+                children = children[1:]
+        fragment = self._compile_sequence(children, delimiter=layout.attrib.get("delimiter", ""))
+        return self._wrap_fragment(fragment, layout)
 
     def _render_macro_template(self, name: str, macro: XmlElementTree.Element) -> str:
         fragment = self._compile_sequence(list(macro), delimiter=macro.attrib.get("delimiter", ""))
@@ -950,38 +984,99 @@ class _Compiler:
             f"{' ' * indent}<xsl:value-of select=\"normalize-space(concat(b:First, ' ', b:Middle, ' ', b:Last))\"/>"
         ]
 
-    def _important_fields(self) -> tuple[str, ...]:
+    def _important_fields_templates(self) -> list[str]:
+        field_map: dict[str, tuple[str, ...]] = {
+            "Book": (
+                "b:Author/b:Author/b:NameList",
+                "b:Year",
+                "b:Title",
+                "b:City",
+                "b:Publisher",
+            ),
+            "BookSection": (
+                "b:Author/b:Author/b:NameList",
+                "b:Year",
+                "b:Title",
+                "b:BookTitle",
+                "b:Pages",
+                "b:City",
+                "b:Publisher",
+            ),
+            "JournalArticle": (
+                "b:Author/b:Author/b:NameList",
+                "b:Year",
+                "b:Title",
+                "b:JournalName",
+                "b:Volume",
+                "b:Issue",
+                "b:Pages",
+            ),
+            "ArticleInAPeriodical": (
+                "b:Author/b:Author/b:NameList",
+                "b:Year",
+                "b:Title",
+                "b:JournalName",
+                "b:Volume",
+                "b:Issue",
+                "b:Pages",
+            ),
+            "ConferenceProceedings": (
+                "b:Author/b:Author/b:NameList",
+                "b:Year",
+                "b:Title",
+                "b:City",
+                "b:ConferenceName",
+            ),
+            "Report": (
+                "b:Author/b:Author/b:NameList",
+                "b:Year",
+                "b:Title",
+                "b:Publisher",
+                "b:Number",
+            ),
+            "InternetSite": (
+                "b:Author/b:Author/b:NameList",
+                "b:Title",
+                "b:Year",
+                "b:Month",
+                "b:Day",
+                "b:URL",
+            ),
+            "DocumentFromInternetSite": (
+                "b:Author/b:Author/b:NameList",
+                "b:Title",
+                "b:Year",
+                "b:Month",
+                "b:Day",
+                "b:URL",
+            ),
+            "Patent": (
+                "b:Author/b:Inventor/b:NameList",
+                "b:Year",
+                "b:Title",
+                "b:CountryRegion",
+                "b:PatentNumber",
+                "b:Day",
+                "b:Month",
+            ),
+        }
+        lines: list[str] = []
+        for source_type, fields in field_map.items():
+            lines.append(f"        <xsl:when test=\"b:SourceType='{escape(source_type)}'\">")
+            lines.extend(
+                [
+                    f"          <b:ImportantField>{escape(field)}</b:ImportantField>"
+                    for field in fields
+                ]
+            )
+            lines.append("        </xsl:when>")
+        return lines
+
+    def _important_fields_default(self) -> tuple[str, ...]:
         return (
-            "SourceType",
-            "Author",
-            "Editor",
-            "Translator",
-            "Director",
-            "Composer",
-            "Title",
-            "JournalName",
-            "BookTitle",
-            "ConferenceName",
-            "PeriodicalTitle",
-            "InternetSiteTitle",
-            "Volume",
-            "Issue",
-            "Pages",
-            "Publisher",
-            "City",
-            "StateProvince",
-            "CountryRegion",
-            "Edition",
-            "Year",
-            "Month",
-            "Day",
-            "YearAccessed",
-            "MonthAccessed",
-            "DayAccessed",
-            "URL",
-            "DOI",
-            "StandardNumber",
-            "PatentNumber",
+            "b:Author/b:Author/b:NameList",
+            "b:Title",
+            "b:Year",
         )
 
     def _macro_template_name(self, name: str) -> str:
@@ -1107,6 +1202,13 @@ class _Compiler:
       </xsl:choose>
       <xsl:value-of select="$pages"/>
     </xsl:if>
+  </xsl:template>
+
+  <xsl:template name="bib-ref-order">
+    <xsl:call-template name="templ_prop_SecondaryOpen"/>
+    <xsl:value-of select="b:RefOrder"/>
+    <xsl:call-template name="templ_prop_SecondaryClose"/>
+    <xsl:call-template name="templ_prop_Space"/>
   </xsl:template>"""
 
 

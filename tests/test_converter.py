@@ -35,6 +35,9 @@ def test_convert_csl_file_generates_standalone_word_style(tmp_path: Path) -> Non
     assert "2026-01-07T15:36:59+00:00" in xml_text
     assert 'match="b:GetImportantFields"' in xml_text
     assert "IEEE2006OfficeOnline" not in xml_text
+    assert "b:Author/b:Author/b:NameList" in xml_text
+    assert "b:JournalName" in xml_text
+    assert "<b:ImportantField>Author</b:ImportantField>" not in xml_text
 
 
 def test_generated_xsl_uses_csl_metadata_fields(tmp_path: Path) -> None:
@@ -120,6 +123,9 @@ def test_generated_bibliography_outputs_html_paragraphs(tmp_path: Path) -> None:
 
     assert '<xsl:template match="b:Bibliography">' in xml_text
     assert '<html xmlns="http://www.w3.org/TR/REC-html40">' in xml_text
+    assert '<table class="MsoBibliography" width="100%">' in xml_text
+    assert '<td style="text-align:right" valign="top">' in xml_text
+    assert 'name="bib-ref-order"' in xml_text
     assert '<p class="MsoBibliography">' in xml_text
 
 
