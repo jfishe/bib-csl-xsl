@@ -57,6 +57,10 @@ def test_generated_xsl_uses_csl_metadata_fields(tmp_path: Path) -> None:
         "IEEE Reference Guide version 11.29.2023"
         "</xsl:text></xsl:template>" in xml_text
     )
+    assert 'match="b:Citation"' in xml_text
+    assert 'name="display-page-or-pages"' in xml_text
+    assert "/*/b:Locals/b:Local[1]/b:APA/b:SecondaryOpen" in xml_text
+    assert '<xsl:sort select="b:RefOrder" order="ascending" data-type="number"/>' in xml_text
 
 
 def test_generated_xsl_uses_bound_variable_names_for_et_al_logic(tmp_path: Path) -> None:
@@ -94,6 +98,41 @@ def test_generated_xsl_does_not_emit_author_label_artifact(tmp_path: Path) -> No
     assert ", author" not in xml_text
     assert ">author<" not in xml_text
     assert ">ed.<" in xml_text
+
+
+def test_generated_xsl_uses_ref_order_not_tag_for_citation_numbers(tmp_path: Path) -> None:
+    output = tmp_path / "ieee.xsl"
+
+    convert_csl_file(FIXTURE, output)
+
+    xml_text = output.read_text(encoding="utf-8")
+
+    assert "b:Tag" not in xml_text
+    assert "b:RefOrder" in xml_text
+
+
+def test_generated_bibliography_outputs_html_paragraphs(tmp_path: Path) -> None:
+    output = tmp_path / "ieee.xsl"
+
+    convert_csl_file(FIXTURE, output)
+
+    xml_text = output.read_text(encoding="utf-8")
+
+    assert '<xsl:template match="b:Bibliography">' in xml_text
+    assert '<html xmlns="http://www.w3.org/TR/REC-html40">' in xml_text
+    assert '<p class="MsoBibliography">' in xml_text
+
+
+def test_generated_xsl_uses_citation_level_locator_paths(tmp_path: Path) -> None:
+    output = tmp_path / "ieee.xsl"
+
+    convert_csl_file(FIXTURE, output)
+
+    xml_text = output.read_text(encoding="utf-8")
+
+    assert "../b:Pages" in xml_text
+    assert "../b:PageRange" in xml_text
+    assert "../b:LocatorType" in xml_text
 
 
 def test_cli_writes_output_file(tmp_path: Path) -> None:

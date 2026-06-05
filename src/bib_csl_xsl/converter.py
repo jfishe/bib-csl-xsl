@@ -45,11 +45,10 @@ TEXT_VARIABLE_PATHS = {
     "collection-title": ("b:SeriesTitle",),
     "collection-number": ("b:SeriesNumber",),
     "chapter-number": ("b:ChapterNumber",),
-    "citation-number": ("b:Tag",),
     "event": ("b:ConferenceName",),
     "archive": ("b:Archive",),
     "archive_location": ("b:ArchiveLocation",),
-    "locator": ("b:Pages", "b:PageRange"),
+    "locator": ("../b:Pages", "../b:PageRange", "b:Pages", "b:PageRange"),
     "note": ("b:Comments",),
     "number-of-volumes": ("b:NumberOfVolumes",),
     "status": ("b:Comments",),
@@ -174,6 +173,8 @@ class Fragment:
 
     setup_lines: list[str]
     variable_name: str
+    display_test: str
+    contribution_test: str
 
 
 def parse_csl_style(path: str | Path) -> CslStyle:
@@ -261,7 +262,6 @@ class _Compiler:
             self._render_macro_template(name, macro) for name, macro in self.style.macros.items()
         )
         bibliography_fragment = self._compile_node(self.style.bibliography_layout)
-        citation_fragment = self._compile_node(self.style.citation_layout)
         lines = [
             '<?xml version="1.0" encoding="utf-8"?>',
             '<xsl:stylesheet version="1.0"',
@@ -301,22 +301,45 @@ class _Compiler:
             "  </xsl:template>",
             "",
             '  <xsl:template match="b:Citation">',
-            *self._indent(citation_fragment.setup_lines, 2),
-            f'    <xsl:value-of select="string(${citation_fragment.variable_name})"/>',
+            '    <html xmlns="http://www.w3.org/TR/REC-html40">',
+            "      <body>",
+            '        <xsl:if test="b:FirstAuthor">',
+            '          <xsl:call-template name="templ_prop_SecondaryOpen"/>',
+            "        </xsl:if>",
+            '        <xsl:value-of select="b:Source/b:RefOrder"/>',
+            '        <xsl:if test="string-length(normalize-space(b:Pages)) &gt; 0">',
+            '          <xsl:call-template name="display-page-or-pages">',
+            '            <xsl:with-param name="pages" select="normalize-space(b:Pages)"/>',
+            "          </xsl:call-template>",
+            "        </xsl:if>",
+            '        <xsl:if test="b:LastAuthor">',
+            '          <xsl:call-template name="templ_prop_SecondaryClose"/>',
+            "        </xsl:if>",
+            '        <xsl:if test="not(b:LastAuthor)">',
+            '          <xsl:call-template name="templ_prop_ListSeparator"/>',
+            '          <xsl:call-template name="templ_prop_Space"/>',
+            "        </xsl:if>",
+            "      </body>",
+            "    </html>",
             "  </xsl:template>",
             "",
             '  <xsl:template match="b:Bibliography">',
-            '    <xsl:apply-templates select="b:Source"/>',
+            '    <html xmlns="http://www.w3.org/TR/REC-html40">',
+            "      <body>",
+            '        <xsl:apply-templates select="b:Source">',
+            '          <xsl:sort select="b:RefOrder" order="ascending" data-type="number"/>',
+            "        </xsl:apply-templates>",
+            "      </body>",
+            "    </html>",
             "  </xsl:template>",
             "",
             '  <xsl:template match="b:Source">',
+            '    <p class="MsoBibliography">',
             *self._indent(bibliography_fragment.setup_lines, 2),
             '    <xsl:value-of select="normalize-space(string($'
             + bibliography_fragment.variable_name
             + '))"/>',
-            '    <xsl:if test="position() != last()">',
-            "      <xsl:text>&#10;</xsl:text>",
-            "    </xsl:if>",
+            "    </p>",
             "  </xsl:template>",
             "</xsl:stylesheet>",
             "",
@@ -328,7 +351,9 @@ class _Compiler:
         lines = [
             f'  <xsl:template name="{self._macro_template_name(name)}">',
             *self._indent(fragment.setup_lines, 2),
-            f'    <xsl:value-of select="string(${fragment.variable_name})"/>',
+            f'    <xsl:if test="{fragment.display_test}">',
+            f'      <xsl:value-of select="string(${fragment.variable_name})"/>',
+            "    </xsl:if>",
             "  </xsl:template>",
         ]
         return "\n".join(lines)
@@ -369,10 +394,8 @@ class _Compiler:
             lines.extend(fragment.setup_lines)
         lines.append(f'    <xsl:variable name="{result_name}">')
         for index, fragment in enumerate(child_fragments):
-            condition = self._fragment_has_value(fragment.variable_name)
-            prior = " or ".join(
-                self._fragment_has_value(f.variable_name) for f in child_fragments[:index]
-            )
+            condition = fragment.display_test
+            prior = " or ".join(f"({f.display_test})" for f in child_fragments[:index])
             lines.append(f'      <xsl:if test="{condition}">')
             if delimiter and prior:
                 lines.append(f'        <xsl:if test="{prior}">')
@@ -381,26 +404,42 @@ class _Compiler:
             lines.append(f'        <xsl:value-of select="string(${fragment.variable_name})"/>')
             lines.append("      </xsl:if>")
         lines.append("    </xsl:variable>")
-        return Fragment(lines, result_name)
+        contribution_terms = [
+            f"({fragment.contribution_test})"
+            for fragment in child_fragments
+            if fragment.contribution_test != "false()"
+        ]
+        contribution_test = (
+            " or ".join(contribution_terms)
+            if contribution_terms
+            else self._fragment_has_value(result_name)
+        )
+        return Fragment(lines, result_name, contribution_test, contribution_test)
 
     def _compile_text(self, node: XmlElementTree.Element) -> Fragment:
         content_name = self._new_var("text")
         lines = [f'    <xsl:variable name="{content_name}">']
+        display_test = self._fragment_has_value(content_name)
+        contribution_test = "false()"
         if "value" in node.attrib:
             lines.extend(self._text_lines(node.attrib["value"], 6))
         elif "macro" in node.attrib:
             lines.append(
                 f'      <xsl:call-template name="{self._macro_template_name(node.attrib["macro"])}"/>'
             )
+            contribution_test = self._fragment_has_value(content_name)
         elif "term" in node.attrib:
             term_value = self._resolve_term(node.attrib["term"], node.attrib.get("form", "long"))
             lines.extend(self._text_lines(term_value, 6))
         elif "variable" in node.attrib:
             lines.extend(self._emit_variable_value(node.attrib["variable"], indent=6))
+            contribution_test = self._variable_presence(node.attrib["variable"])
         else:
             raise ConversionError("<text> must provide value, macro, term, or variable.")
         lines.append("    </xsl:variable>")
-        return self._apply_text_decorations(content_name, node, lines)
+        return self._apply_text_decorations(
+            content_name, node, lines, display_test, contribution_test
+        )
 
     def _compile_number(self, node: XmlElementTree.Element) -> Fragment:
         variable = node.attrib.get("variable")
@@ -419,7 +458,10 @@ class _Compiler:
         else:
             lines.extend(self._emit_variable_value(variable, indent=6))
         lines.append("    </xsl:variable>")
-        return self._apply_text_decorations(content_name, node, lines)
+        display_test = self._fragment_has_value(content_name)
+        return self._apply_text_decorations(
+            content_name, node, lines, display_test, self._variable_presence(variable)
+        )
 
     def _compile_label(self, node: XmlElementTree.Element) -> Fragment:
         variable = node.attrib.get("variable", "")
@@ -429,7 +471,13 @@ class _Compiler:
         if term:
             lines.extend(self._text_lines(term, 6))
         lines.append("    </xsl:variable>")
-        return self._apply_text_decorations(content_name, node, lines)
+        return self._apply_text_decorations(
+            content_name,
+            node,
+            lines,
+            self._fragment_has_value(content_name),
+            "false()",
+        )
 
     def _compile_date(self, node: XmlElementTree.Element) -> Fragment:
         variable = node.attrib.get("variable")
@@ -457,7 +505,12 @@ class _Compiler:
             else:
                 part_lines.append(f'        <xsl:value-of select="{path}"/>')
             part_lines.append("      </xsl:variable>")
-            wrapped = self._wrap_existing_var(part_var, child)
+            wrapped = self._wrap_existing_var(
+                part_var,
+                child,
+                self._fragment_has_value(part_var),
+                self._fragment_has_value(part_var),
+            )
             rendered_parts.append((wrapped.variable_name, part_lines + wrapped.setup_lines))
 
         for _, part_lines in rendered_parts:
@@ -476,7 +529,10 @@ class _Compiler:
             lines.append(f'        <xsl:value-of select="string(${name})"/>')
             lines.append("      </xsl:if>")
         lines.append("    </xsl:variable>")
-        return self._apply_text_decorations(content_name, node, lines)
+        display_test = self._fragment_has_value(content_name)
+        return self._apply_text_decorations(
+            content_name, node, lines, display_test, self._variable_presence(variable)
+        )
 
     def _compile_names(self, node: XmlElementTree.Element) -> Fragment:
         variables = [part for part in node.attrib.get("variable", "").split() if part]
@@ -519,7 +575,23 @@ class _Compiler:
                 lines.append("        </xsl:otherwise>")
             lines.append("      </xsl:choose>")
         lines.append("    </xsl:variable>")
-        return self._apply_text_decorations(content_name, node, lines)
+        contribution_terms = [
+            f"(count({PERSON_ROLE_PATHS[variable]}) &gt; 0)" for variable, _ in when_clauses
+        ]
+        if substitute is not None:
+            contribution_terms.append(self._fragment_has_value(content_name))
+        contribution_test = (
+            " or ".join(contribution_terms)
+            if contribution_terms
+            else self._fragment_has_value(content_name)
+        )
+        return self._apply_text_decorations(
+            content_name,
+            node,
+            lines,
+            self._fragment_has_value(content_name),
+            contribution_test,
+        )
 
     def _compile_name_list(
         self,
@@ -618,7 +690,12 @@ class _Compiler:
             )
             lines.append("      </xsl:if>")
         lines.append("    </xsl:variable>")
-        return Fragment(lines, rendered)
+        return Fragment(
+            lines,
+            rendered,
+            self._fragment_has_value(rendered),
+            f"count({role_path}) &gt; 0",
+        )
 
     def _compile_choose(self, node: XmlElementTree.Element) -> Fragment:
         result_name = self._new_var("choose")
@@ -638,9 +715,12 @@ class _Compiler:
             lines.append(f'          <xsl:value-of select="string(${branch.variable_name})"/>')
             lines.append("        </xsl:otherwise>" if tag == "else" else "        </xsl:when>")
         lines.extend(["      </xsl:choose>", "    </xsl:variable>"])
-        return self._wrap_fragment(Fragment(lines, result_name), node)
+        result_test = self._fragment_has_value(result_name)
+        return self._wrap_fragment(Fragment(lines, result_name, result_test, result_test), node)
 
     def _emit_variable_value(self, variable: str, indent: int) -> list[str]:
+        if variable == "citation-number":
+            return self._first_nonempty(("b:RefOrder", "b:Source/b:RefOrder"), indent)
         if variable in TEXT_VARIABLE_PATHS:
             return self._first_nonempty(TEXT_VARIABLE_PATHS[variable], indent)
         if variable in {"publisher-place", "event-place"}:
@@ -672,15 +752,38 @@ class _Compiler:
         content_name: str,
         node: XmlElementTree.Element,
         lines: list[str],
+        display_test: str,
+        contribution_test: str,
     ) -> Fragment:
-        decorated = self._wrap_existing_var(content_name, node)
-        return Fragment(lines + decorated.setup_lines, decorated.variable_name)
+        decorated = self._wrap_existing_var(content_name, node, display_test, contribution_test)
+        return Fragment(
+            lines + decorated.setup_lines,
+            decorated.variable_name,
+            decorated.display_test,
+            contribution_test,
+        )
 
     def _wrap_fragment(self, fragment: Fragment, node: XmlElementTree.Element) -> Fragment:
-        wrapped = self._wrap_existing_var(fragment.variable_name, node)
-        return Fragment(fragment.setup_lines + wrapped.setup_lines, wrapped.variable_name)
+        wrapped = self._wrap_existing_var(
+            fragment.variable_name,
+            node,
+            fragment.display_test,
+            fragment.contribution_test,
+        )
+        return Fragment(
+            fragment.setup_lines + wrapped.setup_lines,
+            wrapped.variable_name,
+            wrapped.display_test,
+            fragment.contribution_test,
+        )
 
-    def _wrap_existing_var(self, content_name: str, node: XmlElementTree.Element) -> Fragment:
+    def _wrap_existing_var(
+        self,
+        content_name: str,
+        node: XmlElementTree.Element,
+        display_test: str,
+        contribution_test: str,
+    ) -> Fragment:
         final_name = self._new_var("wrapped")
         lines = [f'    <xsl:variable name="{final_name}">']
         lines.append(f'      <xsl:if test="{self._fragment_has_value(content_name)}">')
@@ -709,7 +812,7 @@ class _Compiler:
             lines.extend(self._text_lines(suffix, 8))
         lines.append("      </xsl:if>")
         lines.append("    </xsl:variable>")
-        return Fragment(lines, final_name)
+        return Fragment(lines, final_name, display_test, contribution_test)
 
     def _build_condition(self, node: XmlElementTree.Element) -> str:
         clauses: list[str] = []
@@ -736,7 +839,10 @@ class _Compiler:
             clauses.append(self._wrap_match(checks, match))
         if "locator" in node.attrib:
             locator_checks = [
-                f"normalize-space(@locator)='{escape(locator)}' or normalize-space(b:LocatorType)='{escape(locator)}'"
+                f"normalize-space(@locator)='{escape(locator)}' "
+                f"or normalize-space(b:LocatorType)='{escape(locator)}' "
+                f"or normalize-space(../@locator)='{escape(locator)}' "
+                f"or normalize-space(../b:LocatorType)='{escape(locator)}'"
                 for locator in node.attrib["locator"].split()
             ]
             clauses.append(self._wrap_match(locator_checks, match))
@@ -747,6 +853,22 @@ class _Compiler:
     def _variable_presence(self, variable: str) -> str:
         if variable in PERSON_ROLE_PATHS:
             return f"count({PERSON_ROLE_PATHS[variable]}) &gt; 0"
+        if variable == "citation-number":
+            return " or ".join(
+                (
+                    "string-length(normalize-space(b:RefOrder)) &gt; 0",
+                    "string-length(normalize-space(b:Source/b:RefOrder)) &gt; 0",
+                )
+            )
+        if variable == "locator":
+            return " or ".join(
+                (
+                    "string-length(normalize-space(../b:Pages)) &gt; 0",
+                    "string-length(normalize-space(../b:PageRange)) &gt; 0",
+                    "string-length(normalize-space(b:Pages)) &gt; 0",
+                    "string-length(normalize-space(b:PageRange)) &gt; 0",
+                )
+            )
         if variable in DATE_VARIABLE_PARTS:
             fields = DATE_VARIABLE_PARTS[variable].values()
             return " or ".join(
@@ -952,6 +1074,38 @@ class _Compiler:
       </xsl:if>
       <xsl:value-of select="substring(normalize-space($middle), 1, 1)"/>
       <xsl:value-of select="$initializeWith"/>
+    </xsl:if>
+  </xsl:template>
+
+  <xsl:template name="templ_prop_SecondaryOpen">
+    <xsl:value-of select="/*/b:Locals/b:Local[1]/b:APA/b:SecondaryOpen"/>
+  </xsl:template>
+
+  <xsl:template name="templ_prop_SecondaryClose">
+    <xsl:value-of select="/*/b:Locals/b:Local[1]/b:APA/b:SecondaryClose"/>
+  </xsl:template>
+
+  <xsl:template name="templ_prop_ListSeparator">
+    <xsl:value-of select="/*/b:Locals/b:Local[1]/b:General/b:ListSeparator"/>
+  </xsl:template>
+
+  <xsl:template name="templ_prop_Space">
+    <xsl:value-of select="/*/b:Locals/b:Local[1]/b:General/b:Space"/>
+  </xsl:template>
+
+  <xsl:template name="display-page-or-pages">
+    <xsl:param name="pages"/>
+    <xsl:if test="string-length(normalize-space($pages)) &gt; 0">
+      <xsl:call-template name="templ_prop_ListSeparator"/>
+      <xsl:choose>
+        <xsl:when test="contains($pages, '-') or contains($pages, ',')">
+          <xsl:text>pp. </xsl:text>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:text>p. </xsl:text>
+        </xsl:otherwise>
+      </xsl:choose>
+      <xsl:value-of select="$pages"/>
     </xsl:if>
   </xsl:template>"""
 
