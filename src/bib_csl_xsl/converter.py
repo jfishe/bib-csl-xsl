@@ -87,6 +87,11 @@ TERMS = {
     ("available at", "long"): "available",
 }
 
+REFERENCE_TABLE_TITLE_MACROS = frozenset({"title", "event"})
+REFERENCE_TABLE_TITLE_VARIABLES = frozenset(
+    {"title", "container-title", "collection-title", "event"}
+)
+
 CSL_TO_WORD_TYPES = {
     "article-journal": ("JournalArticle",),
     "article-magazine": ("ArticleInAPeriodical",),
@@ -367,19 +372,20 @@ class _Compiler:
         return self._wrap_fragment(fragment, layout)
 
     def _compile_reference_table_title_fragment(self) -> Fragment:
+        return self._compile_reference_table_fragment(keep_title_like=True)
+
+    def _compile_reference_table_remainder_fragment(self) -> Fragment:
+        return self._compile_reference_table_fragment(keep_title_like=False)
+
+    def _compile_reference_table_fragment(self, *, keep_title_like: bool) -> Fragment:
         layout = deepcopy(self.style.bibliography_layout)
         children: list[XmlElementTree.Element] = []
         for child in list(layout):
-            if (
-                _local_name(child.tag) == "text"
-                and child.attrib.get("variable") == "citation-number"
-            ):
-                continue
-            if _local_name(child.tag) == "text" and child.attrib.get("macro") == "author":
-                continue
-            stripped_child = self._strip_access_nodes(child)
-            if stripped_child is not None:
-                children.append(stripped_child)
+            filtered_child, includes_target = self._filter_reference_table_node(
+                child, keep_title_like=keep_title_like
+            )
+            if filtered_child is not None and includes_target:
+                children.append(filtered_child)
         fragment = self._compile_sequence(children, delimiter=layout.attrib.get("delimiter", ""))
         return self._wrap_fragment(fragment, layout)
 
@@ -433,17 +439,51 @@ class _Compiler:
         node = XmlElementTree.Element(f"{{{CSL_NS}}}text", {"variable": variable})
         return self._compile_text(node)
 
-    def _strip_access_nodes(self, node: XmlElementTree.Element) -> XmlElementTree.Element | None:
-        if _local_name(node.tag) == "text" and node.attrib.get("macro") == "access":
-            return None
-        stripped = XmlElementTree.Element(node.tag, node.attrib)
-        stripped.text = node.text
-        stripped.tail = node.tail
+    def _filter_reference_table_node(
+        self, node: XmlElementTree.Element, *, keep_title_like: bool
+    ) -> tuple[XmlElementTree.Element | None, bool]:
+        tag = _local_name(node.tag)
+        if tag == "text":
+            macro = node.attrib.get("macro")
+            if macro is not None:
+                if macro in {"author", "access"}:
+                    return None, False
+                is_title_like = macro in REFERENCE_TABLE_TITLE_MACROS
+                if is_title_like == keep_title_like:
+                    return deepcopy(node), True
+                return None, False
+            variable = node.attrib.get("variable")
+            if variable is not None:
+                if variable == "citation-number":
+                    return None, False
+                is_title_like = variable in REFERENCE_TABLE_TITLE_VARIABLES
+                if is_title_like == keep_title_like:
+                    return deepcopy(node), True
+                return None, False
+            return deepcopy(node), False
+        if tag in {"number", "label", "date", "names"}:
+            variable = node.attrib.get("variable", "")
+            if variable == "citation-number":
+                return None, False
+            is_title_like = variable in REFERENCE_TABLE_TITLE_VARIABLES
+            if is_title_like == keep_title_like:
+                return deepcopy(node), True
+            return None, False
+
+        filtered = XmlElementTree.Element(node.tag, node.attrib)
+        filtered.text = node.text
+        filtered.tail = node.tail
+        includes_target = False
         for child in list(node):
-            stripped_child = self._strip_access_nodes(child)
-            if stripped_child is not None:
-                stripped.append(stripped_child)
-        return stripped
+            filtered_child, child_includes_target = self._filter_reference_table_node(
+                child, keep_title_like=keep_title_like
+            )
+            if filtered_child is not None:
+                filtered.append(filtered_child)
+            includes_target = includes_target or child_includes_target
+        if includes_target:
+            return filtered, True
+        return None, False
 
     def _compile_fragment_sequence(self, fragments: list[Fragment], delimiter: str) -> Fragment:
         active_fragments = [
@@ -1319,9 +1359,7 @@ class _Compiler:
         bibliography_author_fragment = self._compile_optional_macro_fragment("author")
         bibliography_revision_fragment = self._compile_bibliography_revision_fragment()
         bibliography_title_fragment = self._compile_reference_table_title_fragment()
-        bibliography_document_number_fragment = (
-            self._compile_bibliography_document_number_fragment()
-        )
+        bibliography_document_number_fragment = self._compile_reference_table_remainder_fragment()
         return [
             '  <xsl:template match="b:Bibliography">',
             '    <html xmlns="http://www.w3.org/TR/REC-html40">',

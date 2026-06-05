@@ -214,6 +214,7 @@ def test_reference_table_title_column_omits_available_label(tmp_path: Path) -> N
     assert "Available" not in title_cell
     assert 'call-template name="macro_access"' not in title_cell
     assert '<xsl:attribute name="href">' not in title_cell
+    assert 'call-template name="macro_title"' in title_cell
 
 
 def test_reference_table_document_number_column_hides_url_text_and_links_it(
@@ -232,6 +233,8 @@ def test_reference_table_document_number_column_hides_url_text_and_links_it(
     assert "normalize-space(string($text_" in cell_text
     assert '<xsl:attribute name="href">' in cell_text
     assert "https://doi.org/" not in cell_text
+    assert 'call-template name="macro_title"' not in cell_text
+    assert 'call-template name="macro_issued"' in cell_text
 
 
 def test_cli_writes_output_file(tmp_path: Path) -> None:
