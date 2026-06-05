@@ -11,6 +11,7 @@ from defusedxml import ElementTree as SafeElementTree
 
 CSL_NS = "http://purl.org/net/xbiblio/csl"
 WORD_BIBLIOGRAPHY_NS = "http://schemas.openxmlformats.org/officeDocument/2006/bibliography"
+WORD_BIBLIOGRAPHY_XSL_VERSION = "2006"
 NS = {"csl": CSL_NS}
 
 PERSON_ROLE_PATHS = {
@@ -267,7 +268,7 @@ class _Compiler:
             '    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"',
             f'    xmlns:b="{WORD_BIBLIOGRAPHY_NS}"',
             '    exclude-result-prefixes="b">',
-            '  <xsl:output method="xml" encoding="utf-8" indent="yes"/>',
+            '  <xsl:output method="xml" encoding="utf-8" indent="yes" omit-xml-declaration="yes"/>',
             "",
             self._helper_templates().rstrip(),
             "",
@@ -281,7 +282,7 @@ class _Compiler:
             + escape(self.style.updated)
             + "</xsl:text></xsl:template>",
             '  <xsl:template match="b:XslVersion"><xsl:text>'
-            + escape(self.style.csl_version)
+            + WORD_BIBLIOGRAPHY_XSL_VERSION
             + "</xsl:text></xsl:template>",
             '  <xsl:template match="b:StyleName"><xsl:text>'
             + escape(self.style.compact_title)
@@ -510,8 +511,8 @@ class _Compiler:
                 substitute_fragment = self._compile_sequence(
                     list(substitute), delimiter=substitute.attrib.get("delimiter", "")
                 )
-                lines.extend(self._indent(substitute_fragment.setup_lines, 2))
                 lines.append("        <xsl:otherwise>")
+                lines.extend(self._indent(substitute_fragment.setup_lines, 4))
                 lines.append(
                     f'          <xsl:value-of select="string(${substitute_fragment.variable_name})"/>'
                 )
@@ -599,7 +600,7 @@ class _Compiler:
             lines.extend(
                 [
                     f'      <xsl:if test="${all_count} &gt; number(${display_count})">',
-                    '        <xsl:if test="number($display_count) &gt; 0">',
+                    f'        <xsl:if test="number(${display_count}) &gt; 0">',
                     *self._text_lines(delimiter, 10),
                     "        </xsl:if>",
                     *self._text_lines("et al.", 8),
@@ -781,14 +782,14 @@ class _Compiler:
         return " or ".join(f"({clause})" for clause in values)
 
     def _first_nonempty(self, paths: Iterable[str], indent: int) -> list[str]:
-        lines = [f'{" " * indent}<xsl:choose>']
+        lines = [f"{' ' * indent}<xsl:choose>"]
         for path in paths:
             lines.append(
                 f'{" " * (indent + 2)}<xsl:when test="string-length(normalize-space({path})) &gt; 0">'
             )
             lines.append(f'{" " * (indent + 4)}<xsl:value-of select="{path}"/>')
-            lines.append(f'{" " * (indent + 2)}</xsl:when>')
-        lines.append(f'{" " * indent}</xsl:choose>')
+            lines.append(f"{' ' * (indent + 2)}</xsl:when>")
+        lines.append(f"{' ' * indent}</xsl:choose>")
         return lines
 
     def _emit_joined_fields(self, paths: Iterable[str], delimiter: str, indent: int) -> list[str]:
@@ -805,9 +806,9 @@ class _Compiler:
                 )
                 lines.append(f'{" " * (indent + 2)}<xsl:if test="{prior}">')
                 lines.extend(self._text_lines(delimiter, indent + 4))
-                lines.append(f'{" " * (indent + 2)}</xsl:if>')
+                lines.append(f"{' ' * (indent + 2)}</xsl:if>")
             lines.append(f'{" " * (indent + 2)}<xsl:value-of select="{path}"/>')
-            lines.append(f'{" " * indent}</xsl:if>')
+            lines.append(f"{' ' * indent}</xsl:if>")
         return lines
 
     def _render_person_name(self, initialize_with: str, indent: int) -> list[str]:
@@ -817,14 +818,14 @@ class _Compiler:
                 f'{" " * (indent + 2)}<xsl:with-param name="first" select="b:First"/>',
                 f'{" " * (indent + 2)}<xsl:with-param name="middle" select="b:Middle"/>',
                 f'{" " * (indent + 2)}<xsl:with-param name="initializeWith" select="\'{escape(initialize_with)}\'"/>',
-                f'{" " * indent}</xsl:call-template>',
+                f"{' ' * indent}</xsl:call-template>",
                 f'{" " * indent}<xsl:if test="string-length(normalize-space(b:Last)) &gt; 0">',
                 *self._text_lines(" ", indent + 2),
-                f'{" " * indent}</xsl:if>',
+                f"{' ' * indent}</xsl:if>",
                 f'{" " * indent}<xsl:value-of select="normalize-space(b:Last)"/>',
             ]
         return [
-            f'{" " * indent}<xsl:value-of select="normalize-space(concat(b:First, \' \', b:Middle, \' \', b:Last))"/>'
+            f"{' ' * indent}<xsl:value-of select=\"normalize-space(concat(b:First, ' ', b:Middle, ' ', b:Last))\"/>"
         ]
 
     def _important_fields(self) -> tuple[str, ...]:
@@ -875,7 +876,7 @@ class _Compiler:
     def _text_lines(self, value: str, indent: int) -> list[str]:
         if not value:
             return []
-        return [f'{" " * indent}<xsl:text>{escape(value)}</xsl:text>']
+        return [f"{' ' * indent}<xsl:text>{escape(value)}</xsl:text>"]
 
     def _indent(self, lines: Iterable[str], spaces: int) -> list[str]:
         prefix = " " * spaces

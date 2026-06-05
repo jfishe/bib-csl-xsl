@@ -29,6 +29,7 @@ def test_convert_csl_file_generates_standalone_word_style(tmp_path: Path) -> Non
     root = ElementTree.fromstring(xml_text)
 
     assert root.tag.endswith("stylesheet")
+    assert 'omit-xml-declaration="yes"' in xml_text
     assert 'match="b:StyleName"' in xml_text
     assert "IEEE Reference Guide version 11.29.2023" in xml_text
     assert "2026-01-07T15:36:59+00:00" in xml_text
@@ -48,12 +49,39 @@ def test_generated_xsl_uses_csl_metadata_fields(tmp_path: Path) -> None:
         "2026-01-07T15:36:59+00:00"
         "</xsl:text></xsl:template>" in xml_text
     )
-    assert '<xsl:template match="b:XslVersion"><xsl:text>1.0</xsl:text></xsl:template>' in xml_text
+    assert (
+        '<xsl:template match="b:XslVersion"><xsl:text>2006</xsl:text></xsl:template>' in xml_text
+    )
     assert (
         '<xsl:template match="b:StyleNameLocalized"><xsl:text>'
         "IEEE Reference Guide version 11.29.2023"
         "</xsl:text></xsl:template>" in xml_text
     )
+
+
+def test_generated_xsl_uses_bound_variable_names_for_et_al_logic(tmp_path: Path) -> None:
+    output = tmp_path / "ieee.xsl"
+
+    convert_csl_file(FIXTURE, output)
+
+    xml_text = output.read_text(encoding="utf-8")
+
+    assert "number($display_count)" not in xml_text
+
+
+def test_generated_xsl_only_uses_valid_choose_children(tmp_path: Path) -> None:
+    output = tmp_path / "ieee.xsl"
+
+    convert_csl_file(FIXTURE, output)
+
+    root = ElementTree.fromstring(output.read_text(encoding="utf-8"))
+
+    for choose in root.findall(".//{http://www.w3.org/1999/XSL/Transform}choose"):
+        child_tags = {child.tag for child in choose}
+        assert child_tags <= {
+            "{http://www.w3.org/1999/XSL/Transform}when",
+            "{http://www.w3.org/1999/XSL/Transform}otherwise",
+        }
 
 
 def test_generated_xsl_does_not_emit_author_label_artifact(tmp_path: Path) -> None:
