@@ -30,6 +30,7 @@ coverage.xml
 
 # ----- Docs -----
 docs/_build/
+docs/apidocs/
 
 # ----- Data (keep structure, ignore large files) -----
 data/raw/*

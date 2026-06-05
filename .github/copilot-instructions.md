@@ -56,11 +56,6 @@ subset exercised by that IEEE style, and tests assert that the
 generated XSL is standalone rather than depending on Word's bundled IEEE
 stylesheet.
 
-The repository also contains `dataset.py`, `features.py`,
-`modeling.py`, and `scripts\train_model.py`, but those are
-scaffolding/stubbed data-science utilities and are not part of the
-current converter execution path.
-
 The documentation build is Sphinx-based (`docs\conf.py`) and
 `docs\readme.md` pulls in the root `README.md`, so README changes also
 affect the published docs.

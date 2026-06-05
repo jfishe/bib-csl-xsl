@@ -1,7 +1,7 @@
 """Sphinx configuration for bib-csl-xsl."""
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "_ext"))
 
@@ -69,5 +69,4 @@ latex_documents = [
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "pandas": ("https://pandas.pydata.org/docs/", None),
 }

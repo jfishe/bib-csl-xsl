@@ -6,7 +6,7 @@ SHELL := /bin/bash
 # install only the needed groups quickly.
 UV_SYNC_DEV ?= uv sync --group dev
 
-.PHONY: help install fmt lint typecheck test jupyter docs latexpdf clean
+.PHONY: help install fmt lint typecheck test docs latexpdf clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -33,10 +33,6 @@ test: ## Run tests with coverage (ensure dev tools installed)
 	$(UV_SYNC_DEV)
 	uv run pytest --cov --cov-report=term-missing
 
-jupyter: ## Launch JupyterLab (will try to install notebooks group)
-	uv sync --group notebooks || true
-	uv run jupyter lab --notebook-dir=notebooks
-
 docs: ## Build Sphinx docs (ensure docs group installed)
 	$(MAKE) -C docs html
 
@@ -46,6 +42,6 @@ latexpdf: ## Build Sphinx PDF docs (ensure docs group installed)
 clean: ## Remove build artifacts and caches
 	rm -rf dist/ build/ *.egg-info .venv/
 	rm -rf .pytest_cache/ .mypy_cache/ .ruff_cache/ .ty_cache/ htmlcov/
-	rm -rf docs/_build/
+	rm -rf docs/_build/ docs/apidocs/
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
