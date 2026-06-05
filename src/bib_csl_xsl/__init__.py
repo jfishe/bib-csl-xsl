@@ -1,6 +1,7 @@
 """Convert CSL styles into Microsoft Word bibliography XSL styles."""
 
 from bib_csl_xsl.converter import (
+    BibliographyFormat,
     ConversionError,
     CslStyle,
     convert_csl_file,
@@ -10,6 +11,7 @@ from bib_csl_xsl.converter import (
 )
 
 __all__ = [
+    "BibliographyFormat",
     "ConversionError",
     "CslStyle",
     "convert_csl_file",

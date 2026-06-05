@@ -16,6 +16,14 @@ uv sync --group dev
 uv run bib-csl-xsl .\tests\fixtures\ieee.csl --output .\ieee.xsl
 ```
 
+To generate the Section 4.1 reference-table layout instead of the
+default bibliography output:
+
+```powershell
+uv run bib-csl-xsl .\tests\fixtures\ieee.csl --output .\ieee.xsl `
+  --bibliography-format reference-table
+```
+
 You can also invoke the module directly:
 
 ```powershell

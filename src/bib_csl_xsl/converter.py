@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from copy import deepcopy
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from xml.etree import ElementTree as XmlElementTree
 from xml.sax.saxutils import escape
@@ -82,7 +84,7 @@ TERMS = {
     ("volume", "short"): "vol.",
     ("chapter", "short"): "ch.",
     ("accessed", "long"): "accessed",
-    ("available at", "long"): "available:",
+    ("available at", "long"): "available",
 }
 
 CSL_TO_WORD_TYPES = {
@@ -144,6 +146,13 @@ class ConversionError(ValueError):
     """Raised when a CSL style cannot be converted by the supported subset."""
 
     pass
+
+
+class BibliographyFormat(StrEnum):
+    """Supported bibliography output layouts."""
+
+    STANDARD = "standard"
+    REFERENCE_TABLE = "reference-table"
 
 
 @dataclass(slots=True)
@@ -235,17 +244,27 @@ def validate_style(style: CslStyle) -> None:
         )
 
 
-def convert_csl_file(source: str | Path, destination: str | Path) -> Path:
+def convert_csl_file(
+    source: str | Path,
+    destination: str | Path,
+    bibliography_format: BibliographyFormat = BibliographyFormat.STANDARD,
+) -> Path:
     """Convert a CSL file on disk into a Word bibliography XSL file."""
     style = parse_csl_style(source)
     validate_style(style)
-    output = write_word_bibliography_style(style, destination)
+    output = write_word_bibliography_style(
+        style, destination, bibliography_format=bibliography_format
+    )
     return output
 
 
-def write_word_bibliography_style(style: CslStyle, destination: str | Path) -> Path:
+def write_word_bibliography_style(
+    style: CslStyle,
+    destination: str | Path,
+    bibliography_format: BibliographyFormat = BibliographyFormat.STANDARD,
+) -> Path:
     """Write a standalone Word bibliography XSL file for the parsed CSL style."""
-    compiler = _Compiler(style)
+    compiler = _Compiler(style, bibliography_format=bibliography_format)
     output_path = Path(destination)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(compiler.render_stylesheet(), encoding="utf-8")
@@ -253,8 +272,13 @@ def write_word_bibliography_style(style: CslStyle, destination: str | Path) -> P
 
 
 class _Compiler:
-    def __init__(self, style: CslStyle) -> None:
+    def __init__(
+        self,
+        style: CslStyle,
+        bibliography_format: BibliographyFormat = BibliographyFormat.STANDARD,
+    ) -> None:
         self.style = style
+        self.bibliography_format = bibliography_format
         self._counter = 0
 
     def render_stylesheet(self) -> str:
@@ -262,6 +286,8 @@ class _Compiler:
             self._render_macro_template(name, macro) for name, macro in self.style.macros.items()
         )
         bibliography_fragment = self._compile_bibliography_layout()
+        style_name = self._style_name()
+        style_name_localized = self._style_name_localized()
         lines = [
             '<?xml version="1.0" encoding="utf-8"?>',
             '<xsl:stylesheet version="1.0"',
@@ -285,10 +311,10 @@ class _Compiler:
             + WORD_BIBLIOGRAPHY_XSL_VERSION
             + "</xsl:text></xsl:template>",
             '  <xsl:template match="b:StyleName"><xsl:text>'
-            + escape(self.style.compact_title)
+            + escape(style_name)
             + "</xsl:text></xsl:template>",
             '  <xsl:template match="b:StyleNameLocalized"><xsl:text>'
-            + escape(self.style.title)
+            + escape(style_name_localized)
             + "</xsl:text></xsl:template>",
             "",
             '  <xsl:template match="b:GetImportantFields">',
@@ -328,40 +354,7 @@ class _Compiler:
             "    </html>",
             "  </xsl:template>",
             "",
-            '  <xsl:template match="b:Bibliography">',
-            '    <html xmlns="http://www.w3.org/TR/REC-html40">',
-            "      <head>",
-            "        <style>",
-            "          p.MsoBibliography, li.MsoBibliography, div.MsoBibliography",
-            "        </style>",
-            "      </head>",
-            "      <body>",
-            '        <table class="MsoBibliography" width="100%">',
-            '          <xsl:apply-templates select="b:Source">',
-            '            <xsl:sort select="b:RefOrder" order="ascending" data-type="number"/>',
-            "          </xsl:apply-templates>",
-            "        </table>",
-            "      </body>",
-            "    </html>",
-            "  </xsl:template>",
-            "",
-            '  <xsl:template match="b:Source">',
-            "    <tr>",
-            '      <td style="text-align:right" valign="top">',
-            '        <p class="MsoBibliography">',
-            '          <xsl:call-template name="bib-ref-order"/>',
-            "        </p>",
-            "      </td>",
-            '      <td style="text-align:left" valign="top">',
-            '        <p class="MsoBibliography">',
-            *self._indent(bibliography_fragment.setup_lines, 4),
-            '          <xsl:value-of select="normalize-space(string($'
-            + bibliography_fragment.variable_name
-            + '))"/>',
-            "        </p>",
-            "      </td>",
-            "    </tr>",
-            "  </xsl:template>",
+            *self._render_bibliography_templates(bibliography_fragment),
             "</xsl:stylesheet>",
             "",
         ]
@@ -369,7 +362,29 @@ class _Compiler:
 
     def _compile_bibliography_layout(self) -> Fragment:
         layout = self.style.bibliography_layout
-        children = list(layout)
+        children = self._bibliography_layout_children()
+        fragment = self._compile_sequence(children, delimiter=layout.attrib.get("delimiter", ""))
+        return self._wrap_fragment(fragment, layout)
+
+    def _compile_reference_table_title_fragment(self) -> Fragment:
+        layout = deepcopy(self.style.bibliography_layout)
+        children: list[XmlElementTree.Element] = []
+        for child in list(layout):
+            if (
+                _local_name(child.tag) == "text"
+                and child.attrib.get("variable") == "citation-number"
+            ):
+                continue
+            if _local_name(child.tag) == "text" and child.attrib.get("macro") == "author":
+                continue
+            stripped_child = self._strip_access_nodes(child)
+            if stripped_child is not None:
+                children.append(stripped_child)
+        fragment = self._compile_sequence(children, delimiter=layout.attrib.get("delimiter", ""))
+        return self._wrap_fragment(fragment, layout)
+
+    def _bibliography_layout_children(self) -> list[XmlElementTree.Element]:
+        children = list(self.style.bibliography_layout)
         if children:
             first = children[0]
             if (
@@ -377,8 +392,111 @@ class _Compiler:
                 and first.attrib.get("variable") == "citation-number"
             ):
                 children = children[1:]
-        fragment = self._compile_sequence(children, delimiter=layout.attrib.get("delimiter", ""))
-        return self._wrap_fragment(fragment, layout)
+        return children
+
+    def _compile_optional_macro_fragment(self, name: str) -> Fragment:
+        macro = self.style.macros.get(name)
+        if macro is None:
+            return self._compile_literal_fragment("")
+        return self._compile_sequence(list(macro), delimiter=macro.attrib.get("delimiter", ""))
+
+    def _compile_bibliography_revision_fragment(self) -> Fragment:
+        return self._compile_first_nonempty_fragments(
+            [
+                self._compile_text_variable_fragment("version"),
+                self._compile_optional_macro_fragment("edition"),
+                self._compile_optional_macro_fragment("issued"),
+            ]
+        )
+
+    def _compile_bibliography_document_number_fragment(self) -> Fragment:
+        fragments = [
+            self._compile_text_variable_fragment("number"),
+            self._compile_text_variable_fragment("standard-number"),
+            self._compile_text_variable_fragment("DOI"),
+        ]
+        return self._compile_fragment_sequence(fragments, delimiter="; ")
+
+    def _compile_literal_fragment(self, value: str) -> Fragment:
+        content_name = self._new_var("text")
+        lines = [f'    <xsl:variable name="{content_name}">']
+        lines.extend(self._text_lines(value, 6))
+        lines.append("    </xsl:variable>")
+        return Fragment(
+            lines,
+            content_name,
+            self._fragment_has_value(content_name),
+            "false()",
+        )
+
+    def _compile_text_variable_fragment(self, variable: str) -> Fragment:
+        node = XmlElementTree.Element(f"{{{CSL_NS}}}text", {"variable": variable})
+        return self._compile_text(node)
+
+    def _strip_access_nodes(self, node: XmlElementTree.Element) -> XmlElementTree.Element | None:
+        if _local_name(node.tag) == "text" and node.attrib.get("macro") == "access":
+            return None
+        stripped = XmlElementTree.Element(node.tag, node.attrib)
+        stripped.text = node.text
+        stripped.tail = node.tail
+        for child in list(node):
+            stripped_child = self._strip_access_nodes(child)
+            if stripped_child is not None:
+                stripped.append(stripped_child)
+        return stripped
+
+    def _compile_fragment_sequence(self, fragments: list[Fragment], delimiter: str) -> Fragment:
+        active_fragments = [
+            fragment for fragment in fragments if fragment.display_test != "false()"
+        ]
+        if not active_fragments:
+            return self._compile_literal_fragment("")
+        result_name = self._new_var("seq")
+        lines: list[str] = []
+        for fragment in active_fragments:
+            lines.extend(fragment.setup_lines)
+        lines.append(f'    <xsl:variable name="{result_name}">')
+        for index, fragment in enumerate(active_fragments):
+            prior = " or ".join(f"({item.display_test})" for item in active_fragments[:index])
+            lines.append(f'      <xsl:if test="{fragment.display_test}">')
+            if delimiter and prior:
+                lines.append(f'        <xsl:if test="{prior}">')
+                lines.extend(self._text_lines(delimiter, 10))
+                lines.append("        </xsl:if>")
+            lines.append(f'        <xsl:value-of select="string(${fragment.variable_name})"/>')
+            lines.append("      </xsl:if>")
+        lines.append("    </xsl:variable>")
+        return Fragment(
+            lines,
+            result_name,
+            self._fragment_has_value(result_name),
+            self._fragment_has_value(result_name),
+        )
+
+    def _compile_first_nonempty_fragments(self, fragments: list[Fragment]) -> Fragment:
+        active_fragments = [
+            fragment for fragment in fragments if fragment.display_test != "false()"
+        ]
+        if not active_fragments:
+            return self._compile_literal_fragment("")
+        result_name = self._new_var("choose")
+        lines: list[str] = []
+        for fragment in active_fragments:
+            lines.extend(fragment.setup_lines)
+        lines.append(f'    <xsl:variable name="{result_name}">')
+        lines.append("      <xsl:choose>")
+        for fragment in active_fragments:
+            lines.append(f'        <xsl:when test="{fragment.display_test}">')
+            lines.append(f'          <xsl:value-of select="string(${fragment.variable_name})"/>')
+            lines.append("        </xsl:when>")
+        lines.append("      </xsl:choose>")
+        lines.append("    </xsl:variable>")
+        return Fragment(
+            lines,
+            result_name,
+            self._fragment_has_value(result_name),
+            self._fragment_has_value(result_name),
+        )
 
     def _render_macro_template(self, name: str, macro: XmlElementTree.Element) -> str:
         fragment = self._compile_sequence(list(macro), delimiter=macro.attrib.get("delimiter", ""))
@@ -1098,6 +1216,166 @@ class _Compiler:
     def _indent(self, lines: Iterable[str], spaces: int) -> list[str]:
         prefix = " " * spaces
         return [f"{prefix}{line}" if line else "" for line in lines]
+
+    def _render_bibliography_cell(
+        self, fragment: Fragment, *, cell_class: str, width: str
+    ) -> list[str]:
+        return [
+            f'      <td class="{cell_class}" style="width:{width}">',
+            '        <p class="MsoBibliography">',
+            *self._indent(fragment.setup_lines, 4),
+            f'          <xsl:value-of select="normalize-space(string(${fragment.variable_name}))"/>',
+            "        </p>",
+            "      </td>",
+        ]
+
+    def _render_reference_table_title_cell(self, fragment: Fragment) -> list[str]:
+        return [
+            '      <td class="MsoBibliographyCell" style="width:39.94%">',
+            '        <p class="MsoBibliography">',
+            *self._indent(fragment.setup_lines, 4),
+            f'          <xsl:value-of select="normalize-space(string(${fragment.variable_name}))"/>',
+            "        </p>",
+            "      </td>",
+        ]
+
+    def _render_reference_table_document_number_cell(self, fragment: Fragment) -> list[str]:
+        url_fragment = self._compile_text_variable_fragment("URL")
+        return [
+            '      <td class="MsoBibliographyCell" style="width:23.40%">',
+            '        <p class="MsoBibliography">',
+            *self._indent(fragment.setup_lines, 4),
+            *self._indent(url_fragment.setup_lines, 4),
+            "          <xsl:choose>",
+            f'            <xsl:when test="{fragment.display_test} and {url_fragment.display_test}">',
+            "              <a>",
+            f'                <xsl:attribute name="href"><xsl:value-of select="normalize-space(string(${url_fragment.variable_name}))"/></xsl:attribute>',
+            f'                <xsl:value-of select="normalize-space(string(${fragment.variable_name}))"/>',
+            "              </a>",
+            "            </xsl:when>",
+            "            <xsl:otherwise>",
+            f'              <xsl:value-of select="normalize-space(string(${fragment.variable_name}))"/>',
+            "            </xsl:otherwise>",
+            "          </xsl:choose>",
+            "        </p>",
+            "      </td>",
+        ]
+
+    def _render_bibliography_templates(self, bibliography_fragment: Fragment) -> list[str]:
+        if self.bibliography_format is BibliographyFormat.REFERENCE_TABLE:
+            return self._render_reference_table_bibliography_templates()
+        return self._render_standard_bibliography_templates(bibliography_fragment)
+
+    def _style_name(self) -> str:
+        if self.bibliography_format is BibliographyFormat.REFERENCE_TABLE:
+            return f"{self.style.compact_title}ReferenceTable"
+        return self.style.compact_title
+
+    def _style_name_localized(self) -> str:
+        if self.bibliography_format is BibliographyFormat.REFERENCE_TABLE:
+            return f"{self.style.title} (Reference Table)"
+        return self.style.title
+
+    def _render_standard_bibliography_templates(
+        self, bibliography_fragment: Fragment
+    ) -> list[str]:
+        return [
+            '  <xsl:template match="b:Bibliography">',
+            '    <html xmlns="http://www.w3.org/TR/REC-html40">',
+            "      <head>",
+            "        <style>",
+            "          p.MsoBibliography, li.MsoBibliography, div.MsoBibliography",
+            "        </style>",
+            "      </head>",
+            "      <body>",
+            '        <table class="MsoBibliography" width="100%">',
+            '          <xsl:apply-templates select="b:Source">',
+            '            <xsl:sort select="b:RefOrder" order="ascending" data-type="number"/>',
+            "          </xsl:apply-templates>",
+            "        </table>",
+            "      </body>",
+            "    </html>",
+            "  </xsl:template>",
+            "",
+            '  <xsl:template match="b:Source">',
+            "    <tr>",
+            '      <td style="text-align:right" valign="top">',
+            '        <p class="MsoBibliography">',
+            '          <xsl:call-template name="bib-ref-order"/>',
+            "        </p>",
+            "      </td>",
+            '      <td style="text-align:left" valign="top">',
+            '        <p class="MsoBibliography">',
+            *self._indent(bibliography_fragment.setup_lines, 4),
+            f'          <xsl:value-of select="normalize-space(string(${bibliography_fragment.variable_name}))"/>',
+            "        </p>",
+            "      </td>",
+            "    </tr>",
+            "  </xsl:template>",
+            "",
+        ]
+
+    def _render_reference_table_bibliography_templates(self) -> list[str]:
+        bibliography_author_fragment = self._compile_optional_macro_fragment("author")
+        bibliography_revision_fragment = self._compile_bibliography_revision_fragment()
+        bibliography_title_fragment = self._compile_reference_table_title_fragment()
+        bibliography_document_number_fragment = (
+            self._compile_bibliography_document_number_fragment()
+        )
+        return [
+            '  <xsl:template match="b:Bibliography">',
+            '    <html xmlns="http://www.w3.org/TR/REC-html40">',
+            "      <head>",
+            "        <style>",
+            "          p.MsoBibliography, li.MsoBibliography, div.MsoBibliography { margin: 0; font-family: Arial; font-size: 10pt; }",
+            "          table.MsoBibliography { width: 100%; border-collapse: collapse; border: 1pt solid black; }",
+            "          td.MsoBibliographyHeader { border: 1pt solid black; background: #D9D9D9; font-family: Arial; font-size: 10pt; font-weight: bold; text-align: center; vertical-align: bottom; padding: 3pt; }",
+            "          td.MsoBibliographyCell { border: 1pt solid black; font-family: Arial; font-size: 10pt; text-align: left; vertical-align: bottom; padding: 3pt; }",
+            "          td.MsoBibliographyRef { border: 1pt solid black; font-family: Arial; font-size: 10pt; text-align: center; vertical-align: bottom; padding: 3pt; }",
+            "        </style>",
+            "      </head>",
+            "      <body>",
+            '        <table class="MsoBibliography" width="100%">',
+            "          <tr>",
+            '            <td class="MsoBibliographyHeader" style="width:9.68%">Reference Number</td>',
+            '            <td class="MsoBibliographyHeader" style="width:15.30%">Author</td>',
+            '            <td class="MsoBibliographyHeader" style="width:11.68%">Issue Date, Edition or Revision</td>',
+            '            <td class="MsoBibliographyHeader" style="width:39.94%">Title</td>',
+            '            <td class="MsoBibliographyHeader" style="width:23.40%">Document Number</td>',
+            "          </tr>",
+            '          <xsl:apply-templates select="b:Source">',
+            '            <xsl:sort select="b:RefOrder" order="ascending" data-type="number"/>',
+            "          </xsl:apply-templates>",
+            "        </table>",
+            "      </body>",
+            "    </html>",
+            "  </xsl:template>",
+            "",
+            '  <xsl:template match="b:Source">',
+            "    <tr>",
+            '      <td class="MsoBibliographyRef" style="width:9.68%">',
+            '        <p class="MsoBibliography">',
+            '          <xsl:value-of select="b:RefOrder"/>',
+            "        </p>",
+            "      </td>",
+            *self._render_bibliography_cell(
+                bibliography_author_fragment,
+                cell_class="MsoBibliographyCell",
+                width="15.30%",
+            ),
+            *self._render_bibliography_cell(
+                bibliography_revision_fragment,
+                cell_class="MsoBibliographyCell",
+                width="11.68%",
+            ),
+            *self._render_reference_table_title_cell(bibliography_title_fragment),
+            *self._render_reference_table_document_number_cell(
+                bibliography_document_number_fragment
+            ),
+            "    </tr>",
+            "  </xsl:template>",
+            "",
+        ]
 
     def _helper_templates(self) -> str:
         return """  <xsl:template name="apply-text-case">
