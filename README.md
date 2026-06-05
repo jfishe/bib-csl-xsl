@@ -2,6 +2,14 @@
 
 Convert numeric CSL styles into standalone Microsoft Word bibliography XSL styles.
 
+## Development
+
+Install the development tools with `uv`:
+
+```powershell
+uv sync --group dev
+```
+
 ## Usage
 
 ```powershell
@@ -25,9 +33,22 @@ by the IEEE fixture:
 - creator substitution and `et al.` handling
 - standalone output without copying Office's bundled IEEE XSL
 
-## Development
+## Common commands
 
 ```powershell
-uv run pytest tests\test_converter.py
-uv run ruff check src\bib_csl_xsl\converter.py src\bib_csl_xsl\__main__.py tests\test_converter.py
+make lint
+make typecheck
+make test
+make docs
+uv build
 ```
+
+## Versioning and changelog
+
+This project follows [Semantic Versioning] and keeps
+human-readable release notes in [CHANGELOG.md]. The changelog format
+follows [Keep a Changelog].
+
+[changelog.md]: CHANGELOG.md
+[keep a changelog]: https://keepachangelog.com/en/1.1.0/
+[semantic versioning]: https://semver.org/
