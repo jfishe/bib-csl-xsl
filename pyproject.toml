@@ -4,7 +4,7 @@ requires = [ "hatchling" ]
 
 [project]
 name = "bib-csl-xsl"
-version = "0.2.0"
+version = "0.3.0"
 description = "Convert Citation Style Language to Extensible Style Language, CSL to XSL, for Microsoft Word bibliography."
 readme = "README.md"
 license = "MIT"

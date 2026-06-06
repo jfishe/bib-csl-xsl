@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning].
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-06
+
 ### Added
 
 - Added an opt-in `reference-table` bibliography format that generates a
@@ -25,6 +27,10 @@ and this project adheres to [Semantic Versioning].
 - Added a `make install-style` shortcut that writes both the default IEEE
   style and the reference-table variant to Word's standard bibliography style
   directory.
+- Added a CLI for converting numeric CSL styles into standalone Microsoft Word
+  bibliography XSL styles.
+- Added support for the IEEE fixture-driven subset of CSL used by the converter.
+- Added regression tests covering CSL parsing, XSL generation, and CLI behavior.
 
 ### Changed
 
@@ -42,24 +48,6 @@ and this project adheres to [Semantic Versioning].
   source CSL basename instead of always writing IEEE-specific names.
 - Switched package `__version__` to read from installed distribution metadata
   instead of a stale hardcoded value in `__init__.py`.
-
-### Fixed
-
-- Fixed duplicated `Available::` output in generated bibliography styles.
-- Fixed generated Word bibliography styles so Corporate Author entries use
-  Word's direct `b:Corporate` paths and display correctly.
-
-## [0.2.1] - 2026-06-05
-
-### Added
-
-- Added a CLI for converting numeric CSL styles into standalone Microsoft Word
-  bibliography XSL styles.
-- Added support for the IEEE fixture-driven subset of CSL used by the converter.
-- Added regression tests covering CSL parsing, XSL generation, and CLI behavior.
-
-### Changed
-
 - Reworked generated Word styles to match Word's expectations for metadata,
   bibliography layout, citation fragments, and source dialog fields.
 - Simplified the repository by removing unused scaffold modules and stale build
@@ -68,13 +56,15 @@ and this project adheres to [Semantic Versioning].
 
 ### Fixed
 
+- Fixed duplicated `Available::` output in generated bibliography styles.
+- Fixed generated Word bibliography styles so Corporate Author entries use
+  Word's direct `b:Corporate` paths and display correctly.
 - Fixed generated XSL validity issues that prevented Word from loading custom
   bibliography styles.
-
 - Fixed bibliography numbering, table-based bibliography output, and citation
   locator handling for Word compatibility.
 
-[0.2.1]: https://github.com/jfishe/bib-csl-xsl/releases/tag/v0.2.1
+[0.3.0]: https://github.com/jfishe/bib-csl-xsl/releases/tag/v0.3.0
 [keep a changelog]: https://keepachangelog.com/en/1.1.0/
 [semantic versioning]: https://semver.org/
-[unreleased]: https://github.com/jfishe/bib-csl-xsl/compare/v0.2.1...HEAD
+[unreleased]: https://github.com/jfishe/bib-csl-xsl/compare/v0.3.0...HEAD
