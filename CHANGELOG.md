@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning].
 
 ## [Unreleased]
 
+### Added
+
+- Added an opt-in `reference-table` bibliography format that generates a
+  five-column table:
+  - Reference Number
+  - Author
+  - Issue Date, Edition or Revision
+  - Title
+  - Document Number
+- Reference-table revision column prefers revision, then edition,
+  then issue date.
+- Document Number column hyperlinks URL are used as hyperlink targets without
+  being displayed.
+
+### Changed
+
+- Kept the legacy Word bibliography layout as the default output and made the
+  reference-table layout selectable through the CLI and converter API.
+- Gave the reference-table output a unique `StyleName` and
+  `StyleNameLocalized` so it can coexist with the default style in Word.
+- Split the reference-table citation output so the Title column contains only
+  title-like fields and the Document Number column contains the remaining
+  citation details.
+
+### Fixed
+
+- Fixed duplicated `Available::` output in generated bibliography styles.
+- Fixed generated Word bibliography styles so Corporate Author entries use
+  Word's direct `b:Corporate` paths and display correctly.
+
 ## [0.2.1] - 2026-06-05
 
 ### Added

@@ -17,11 +17,11 @@ WORD_BIBLIOGRAPHY_XSL_VERSION = "2006"
 NS = {"csl": CSL_NS}
 
 PERSON_ROLE_PATHS = {
-    "author": "b:Author/b:Author/b:NameList/b:Person | b:Author/b:Author/b:NameList/b:Corporate",
-    "editor": "b:Editor/b:Editor/b:NameList/b:Person | b:Editor/b:Editor/b:NameList/b:Corporate",
-    "translator": "b:Translator/b:Translator/b:NameList/b:Person | b:Translator/b:Translator/b:NameList/b:Corporate",
-    "director": "b:Director/b:Director/b:NameList/b:Person | b:Director/b:Director/b:NameList/b:Corporate",
-    "composer": "b:Composer/b:Composer/b:NameList/b:Person | b:Composer/b:Composer/b:NameList/b:Corporate",
+    "author": "b:Author/b:Author/b:NameList/b:Person | b:Author/b:Author/b:Corporate",
+    "editor": "b:Editor/b:Editor/b:NameList/b:Person | b:Editor/b:Editor/b:Corporate",
+    "translator": "b:Translator/b:Translator/b:NameList/b:Person | b:Translator/b:Translator/b:Corporate",
+    "director": "b:Director/b:Director/b:NameList/b:Person | b:Director/b:Director/b:Corporate",
+    "composer": "b:Composer/b:Composer/b:NameList/b:Person | b:Composer/b:Composer/b:Corporate",
 }
 
 TEXT_VARIABLE_PATHS = {
@@ -806,11 +806,12 @@ class _Compiler:
             if "et-al-use-first" in name_element.attrib:
                 et_al_use_first = int(name_element.attrib["et-al-use-first"])
 
+        role_nodes = f"({role_path})"
         all_count = self._new_var("name_count")
         display_count = self._new_var("display_count")
         rendered = self._new_var("rendered_names")
         lines = [
-            f'    <xsl:variable name="{all_count}" select="count({role_path})"/>',
+            f'    <xsl:variable name="{all_count}" select="count({role_nodes})"/>',
             f'    <xsl:variable name="{display_count}">',
         ]
         if et_al_min is not None and et_al_use_first is not None:
@@ -823,7 +824,7 @@ class _Compiler:
             [
                 "    </xsl:variable>",
                 f'    <xsl:variable name="{rendered}">',
-                f'      <xsl:for-each select="{role_path}[position() &lt;= number(${display_count})]">',
+                f'      <xsl:for-each select="{role_nodes}[position() &lt;= number(${display_count})]">',
                 '        <xsl:if test="position() &gt; 1">',
                 "          <xsl:choose>",
             ]
@@ -886,7 +887,7 @@ class _Compiler:
             lines,
             rendered,
             self._fragment_has_value(rendered),
-            f"count({role_path}) &gt; 0",
+            f"count({role_nodes}) &gt; 0",
         )
 
     def _compile_choose(self, node: XmlElementTree.Element) -> Fragment:
@@ -920,9 +921,8 @@ class _Compiler:
                 ("b:City", "b:StateProvince", "b:CountryRegion"), ", ", indent
             )
         if variable in PERSON_ROLE_PATHS:
-            return [
-                f'{" " * indent}<xsl:value-of select="normalize-space({PERSON_ROLE_PATHS[variable]}[1])"/>'
-            ]
+            role_nodes = self._role_path_node_set(variable)
+            return [f'{" " * indent}<xsl:value-of select="normalize-space({role_nodes}[1])"/>']
         raise ConversionError(f"Unsupported variable {variable!r}.")
 
     def _resolve_term(self, term: str, form: str) -> str:
@@ -1044,7 +1044,7 @@ class _Compiler:
 
     def _variable_presence(self, variable: str) -> str:
         if variable in PERSON_ROLE_PATHS:
-            return f"count({PERSON_ROLE_PATHS[variable]}) &gt; 0"
+            return f"count({self._role_path_node_set(variable)}) &gt; 0"
         if variable == "citation-number":
             return " or ".join(
                 (
@@ -1240,6 +1240,9 @@ class _Compiler:
     def _macro_template_name(self, name: str) -> str:
         safe = re.sub(r"[^A-Za-z0-9_]+", "_", name)
         return f"macro_{safe}"
+
+    def _role_path_node_set(self, variable: str) -> str:
+        return f"({PERSON_ROLE_PATHS[variable]})"
 
     def _fragment_has_value(self, variable_name: str) -> str:
         return f"string-length(normalize-space(string(${variable_name}))) &gt; 0"

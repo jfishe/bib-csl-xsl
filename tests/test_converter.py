@@ -76,6 +76,34 @@ def test_generated_xsl_uses_bound_variable_names_for_et_al_logic(tmp_path: Path)
     assert "number($display_count)" not in xml_text
 
 
+def test_generated_xsl_wraps_corporate_author_unions_before_predicates(tmp_path: Path) -> None:
+    output = tmp_path / "ieee.xsl"
+
+    convert_csl_file(FIXTURE, output)
+
+    xml_text = output.read_text(encoding="utf-8")
+
+    assert (
+        'select="count((b:Author/b:Author/b:NameList/b:Person | '
+        'b:Author/b:Author/b:Corporate))"' in xml_text
+    )
+    assert (
+        '<xsl:for-each select="(b:Author/b:Author/b:NameList/b:Person | '
+        "b:Author/b:Author/b:Corporate)[position() &lt;= number($display_count_" in xml_text
+    )
+
+
+def test_generated_xsl_uses_direct_corporate_author_paths(tmp_path: Path) -> None:
+    output = tmp_path / "ieee.xsl"
+
+    convert_csl_file(FIXTURE, output)
+
+    xml_text = output.read_text(encoding="utf-8")
+
+    assert "b:Author/b:Author/b:Corporate" in xml_text
+    assert "b:Author/b:Author/b:NameList/b:Corporate" not in xml_text
+
+
 def test_generated_xsl_only_uses_valid_choose_children(tmp_path: Path) -> None:
     output = tmp_path / "ieee.xsl"
 
