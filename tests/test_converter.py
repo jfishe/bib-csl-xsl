@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+from importlib.metadata import version
 from pathlib import Path
 
 from defusedxml import ElementTree
 
+from bib_csl_xsl import __version__
 from bib_csl_xsl.__main__ import main
 from bib_csl_xsl.converter import BibliographyFormat, convert_csl_file, parse_csl_style
 
 FIXTURE = Path(__file__).parent / "fixtures" / "ieee.csl"
+
+
+def test_package_version_matches_distribution_metadata() -> None:
+    assert __version__ == version("bib-csl-xsl")
 
 
 def test_parse_csl_style_reads_metadata() -> None:

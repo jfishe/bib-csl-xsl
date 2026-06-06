@@ -16,7 +16,7 @@ uv sync --group dev
 uv run bib-csl-xsl .\tests\fixtures\ieee.csl --output .\ieee.xsl
 ```
 
-To generate the Section 4.1 reference-table layout instead of the
+To generate the five-column, reference-table layout instead of the
 default bibliography output:
 
 ```powershell
@@ -44,6 +44,13 @@ by the IEEE fixture:
 ## Common commands
 
 ```powershell
+# Install <source-basename>.xsl and <source-basename>_table.xsl
+# into Word's style directory
+$source = Join-Path $env:TEMP "ieee.csl"
+Invoke-WebRequest -Uri "https://www.zotero.org/styles/ieee" -OutFile $source
+make install-style TARGET="$env:APPDATA\Microsoft\Bibliography\Style" `
+  SOURCE="$source"
+
 make lint
 make typecheck
 make test

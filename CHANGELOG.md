@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning].
   then issue date.
 - Document Number column hyperlinks URL are used as hyperlink targets without
   being displayed.
+- Added a `make install-style` shortcut that writes both the default IEEE
+  style and the reference-table variant to Word's standard bibliography style
+  directory.
 
 ### Changed
 
@@ -32,6 +35,13 @@ and this project adheres to [Semantic Versioning].
 - Split the reference-table citation output so the Title column contains only
   title-like fields and the Document Number column contains the remaining
   citation details.
+- Expanded `make help` with `install-style` variable details and a
+  PowerShell example for downloading a CSL file and installing both Word style
+  outputs.
+- Changed `make install-style` to derive installed XSL filenames from the
+  source CSL basename instead of always writing IEEE-specific names.
+- Switched package `__version__` to read from installed distribution metadata
+  instead of a stale hardcoded value in `__init__.py`.
 
 ### Fixed
 

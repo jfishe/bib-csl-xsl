@@ -1,5 +1,7 @@
 """Convert CSL styles into Microsoft Word bibliography XSL styles."""
 
+from importlib.metadata import version
+
 from bib_csl_xsl.converter import (
     BibliographyFormat,
     ConversionError,
@@ -20,4 +22,4 @@ __all__ = [
     "write_word_bibliography_style",
 ]
 
-__version__ = "0.1.0"
+__version__ = version("bib-csl-xsl")
