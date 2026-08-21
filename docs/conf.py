@@ -55,6 +55,21 @@ myst_heading_anchors = 5
 
 latex_engine = "xelatex"
 
+# Sphinx's "colorrows" table style patches colortbl's internal \CT@everycr
+# token list directly. Newer colortbl releases (which switch to LaTeX3
+# hooks internally) conflict with that patch and cause infinite macro
+# recursion ("TeX capacity exceeded, sorry [input stack size=...]") inside
+# longtable headers on MiKTeX. Disable it; booktabs rules are unaffected.
+latex_table_style = ["booktabs"]
+
+# xelatex defaults to xindy for the index, but xindy is a Perl script whose
+# Windows-vs-TeXLive detection breaks under MiKTeX whenever a non-Windows
+# perl.exe (e.g. Git for Windows' bundled Perl) precedes MiKTeX's own on
+# PATH ("not a symlink as required for TeX Live"). All index entries here
+# are ASCII Python identifiers, so plain makeindex works fine and sidesteps
+# the issue entirely.
+latex_use_xindy = False
+
 # latex_elements = {}
 latex_elements = {
     "preamble": r"""

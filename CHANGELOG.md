@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning].
 
 ## [Unreleased]
 
+<!--
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+-->
+
+### Fixed
+
+- Sphinx builds PDF documents on Windows with `MiKTeX`:
+  - Remove `colorrows` from `latex_table_style`
+    because newer releases switch to `LaTeX3` hooks, conflicting with Sphinx.
+  - Disable `xindy` Perl script has PATH collision with bundled Perl in Git.
+
 ## [0.3.0] - 2026-06-06
 
 ### Added
