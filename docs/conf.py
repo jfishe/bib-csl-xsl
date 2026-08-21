@@ -55,7 +55,13 @@ myst_heading_anchors = 5
 
 latex_engine = "xelatex"
 
-latex_elements = {}
+# latex_elements = {}
+latex_elements = {
+    "preamble": r"""
+        % Ensure paths are treated with forward slashes
+        \usepackage{grffile} % Helps with complex filenames if needed
+    """
+}
 
 latex_documents = [
     (

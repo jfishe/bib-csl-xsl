@@ -1,18 +1,33 @@
 # bib-csl-xsl
 
-Convert numeric CSL styles into standalone Microsoft Word bibliography XSL styles.
+Convert Citation Style Language to XML Style Language, CSL to XSL,
+for Microsoft Word bibliography.
 
 ## Development
 
-Install the development tools with `uv`:
+Install the development tools with [uv]:
 
 ```powershell
+uv lock --upgrade
 uv sync --group dev
 ```
+
+Optional, install external tools with [pixi]:
+
+```powershell
+pixi global install make miktex
+```
+
+You may need to run `mpm` and change
+Settings for Package installation to Ask me.
 
 ## Usage
 
 ```powershell
+make help
+
+uv run bib-csl-xsl --help
+
 uv run bib-csl-xsl .\tests\fixtures\ieee.csl --output .\ieee.xsl
 ```
 
@@ -54,11 +69,24 @@ make install-style TARGET="$env:APPDATA\Microsoft\Bibliography\Style" `
 make lint
 make typecheck
 make test
-make docs
 uv build
 ```
 
-## Versioning and changelog
+### Documentation
+
+```powershell
+make docs
+$job = Start-Job -ScriptBlock {
+    uv run python -m http.server --bind localhost 8000 `
+      --directory docs/_build/html
+}
+Receive-Job $job -Keep
+Start-Process "http://[::1]:8000/"
+# Receive-Job $job -Wait
+# Remove-Job $job -Force
+```
+
+## Versioning and ChangeLog
 
 This project follows [Semantic Versioning] and keeps
 human-readable release notes in [CHANGELOG.md]. The changelog format
@@ -66,4 +94,6 @@ follows [Keep a Changelog].
 
 [changelog.md]: CHANGELOG.md
 [keep a changelog]: https://keepachangelog.com/en/1.1.0/
+[pixi]: https://prefix.dev/tools/pixi
 [semantic versioning]: https://semver.org/
+[uv]: https://docs.astral.sh/uv/
