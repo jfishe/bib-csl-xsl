@@ -4,17 +4,19 @@ requires = [ "hatchling" ]
 
 [project]
 name = "bib-csl-xsl"
-version = "0.3.0"
+version = "0.3.1"
 description = "Convert Citation Style Language to Extensible Style Language, CSL to XSL, for Microsoft Word bibliography."
 readme = "README.md"
 license = "MIT"
 authors = [ { name = "John D. Fisher", email = "jdfenw@gmail.com" } ]
 requires-python = ">=3.13"
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
 ]
 dependencies = [
   "defusedxml>=0.7.1",
@@ -27,7 +29,7 @@ scripts.bib-csl-xsl = "bib_csl_xsl.__main__:main"
 [dependency-groups]
 dev = [
   "mypy>=1.10",
-  "pre-commit>=3.7",
+  "prek>=0.4.13",
   "pytest>=8",
   "pytest-cov>=5",
   "ruff>=0.4",
@@ -69,6 +71,10 @@ lint.ignore = [ "D100", "D104", "D203", "D213" ]
 lint.per-file-ignores."src/bib_csl_xsl/converter.py" = [ "E501" ]
 lint.per-file-ignores."tests/**" = [ "D", "S101" ]
 lint.pydocstyle.convention = "numpy"
+
+[tool.pyproject-fmt]
+# Maximum Python version for generating version classifiers
+max_supported_python = "3.15"
 
 [tool.mypy]
 python_version = "3.13"

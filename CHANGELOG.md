@@ -18,12 +18,34 @@ and this project adheres to [Semantic Versioning].
 ### Security
 -->
 
+### Changed
+
+- Change Trove Classifiers from Alpha to Beta and
+  `max_supported_python` to 3.15.
+- CI: test 3.13 and 3.15.
+
 ### Fixed
 
 - Sphinx builds PDF documents on Windows with `MiKTeX`:
   - Remove `colorrows` from `latex_table_style`
     because newer releases switch to `LaTeX3` hooks, conflicting with Sphinx.
   - Disable `xindy` Perl script has PATH collision with bundled Perl in Git.
+
+### Removed
+
+Removed developer dependency `pre-commmit` in favor of `prek`
+because `uv` failed with python 3.15.
+
+```text
+Creating virtual environment at: .venv
+  × Failed to build `pyyaml==6.0.3`
+  ├─▶ The build backend returned an error
+  ╰─▶ Call to `_pyyaml_pep517.build_wheel` failed (exit code: 1)
+`pyyaml` (v6.0.3) was included because `bib-csl-xsl:dev` (v0.3.0) depends on
+`pre-commit` (v4.6.2) which depends on `pyyaml`
+Build failures usually indicate a problem with the package or
+the build environment
+```
 
 ## [0.3.0] - 2026-06-06
 
